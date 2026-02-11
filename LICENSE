@@ -1,0 +1,130 @@
+Process Tracker AI-Restricted License 1.0 (PT-ARL-1.0)
+Licencia de Código Fuente Abierto con Restricción de Uso para IA /  
+Open Source License with AI Use Restriction
+
+Copyright (c) 2026 Cairo Resendiz
+
+---
+
+VERSIÓN EN ESPAÑOL
+
+Por la presente se concede permiso a cualquier persona que obtenga una copia de este
+software y de los archivos de documentación asociados (el "Software") para usar,
+copiar, modificar y distribuir el Software, con o sin fines comerciales, sujeto a
+las siguientes condiciones:
+
+1. Atribución obligatoria
+   - Debe mantenerse el aviso de copyright anterior y este aviso de licencia
+     en todas las copias sustanciales del Software o de partes significativas del mismo.
+   - Cualquier producto, servicio, investigación o publicación que integre, utilice
+     de forma sustancial o se base en este Software deberá:
+       a) Reconocer explícitamente el uso de "Process Tracker".
+       b) Citar al autor original ("Cairo Resendiz") y
+          enlazar al repositorio original si es posible.
+
+2. Restricción específica de uso para IA
+   - Queda expresamente PROHIBIDO utilizar este Software, su código fuente, binarios,
+     documentación o datos generados de forma sustancial para:
+       a) Entrenar, ajustar, evaluar o mejorar modelos de inteligencia artificial
+          o de aprendizaje automático (incluyendo, sin limitarse a, modelos
+          fundacionales, de lenguaje, de visión, de recomendación o similares).
+       b) Crear, compilar o enriquecer conjuntos de datos destinados al entrenamiento,
+          ajuste o evaluación de dichos modelos.
+   - Esta prohibición aplica tanto a usos comerciales como no comerciales,
+     personales, académicos o de investigación.
+
+3. Contribuciones
+   - Cualquier contribución al Software (incluyendo, sin limitarse a, parches,
+     solicitudes de extracción y fragmentos de código) se considerará licenciada
+     de forma irrevocable bajo los mismos términos de esta licencia.
+   - Al enviar una contribución, el colaborador declara y garantiza que tiene
+     los derechos necesarios para otorgar dicha licencia y que la contribución
+     no infringe derechos de terceros, en la medida de su conocimiento.
+
+4. Sin licencia de marca
+   - Esta licencia no concede ningún derecho sobre nombres comerciales, marcas
+     registradas, logotipos o identidades visuales asociadas a "Process Tracker"
+     o a "Cairo Resendiz".
+   - Cualquier uso de marcas, logotipos o nombres comerciales deberá contar con
+     autorización separada y expresa del titular correspondiente.
+
+5. Terminación
+   - Cualquier incumplimiento de esta licencia, en particular de la cláusula 2
+     (Restricción de uso para IA) o de la cláusula 1 (Atribución), dará lugar a
+     la terminación automática de los derechos concedidos por esta licencia.
+   - Tras la terminación, el usuario deberá cesar inmediatamente todo uso, copia,
+     distribución o explotación del Software, salvo lo permitido por otras
+     licencias que pudieran aplicarse y que hayan sido otorgadas explícitamente
+     por el autor.
+
+6. Descargo de responsabilidad
+   EL SOFTWARE SE ENTREGA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA
+   O IMPLÍCITA, INCLUYENDO PERO NO LIMITÁNDOSE A GARANTÍAS DE COMERCIABILIDAD,
+   IDONEIDAD PARA UN PROPÓSITO PARTICULAR Y NO INFRACCIÓN. EN NINGÚN CASO LOS
+   AUTORES O TITULARES DEL COPYRIGHT SERÁN RESPONSABLES DE NINGUNA RECLAMACIÓN,
+   DAÑO U OTRA RESPONSABILIDAD, YA SEA EN UNA ACCIÓN CONTRACTUAL, AGRAVIO O DE
+   CUALQUIER OTRA MANERA, QUE SURJA DE O EN CONEXIÓN CON EL SOFTWARE O EL USO U
+   OTRO TIPO DE ACCIONES EN EL SOFTWARE.
+
+---
+
+ENGLISH VERSION
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this
+software and associated documentation files (the "Software"), to use, copy, modify,
+and distribute the Software, with or without commercial purposes, subject to the
+following conditions:
+
+1. Mandatory Attribution
+   - The above copyright notice and this permission notice shall be included in
+     all substantial copies or substantial portions of the Software.
+   - Any product, service, research, or publication that integrates, substantially
+     uses, or is based on this Software must:
+       a) Explicitly acknowledge the use of "Process Tracker".
+       b) Cite the original author ("Cairo Resendiz") and link to the original
+          repository when reasonably possible.
+
+2. Specific AI Use Restriction
+   - It is expressly FORBIDDEN to use this Software, its source code, binaries,
+     documentation, or substantially generated data to:
+       a) Train, fine-tune, evaluate, or otherwise improve artificial intelligence
+          or machine learning models (including but not limited to foundation
+          models, language models, vision models, recommendation systems, or
+          similar technologies).
+       b) Create, compile, or enrich datasets intended for training, fine-tuning,
+          or evaluating such models.
+   - This restriction applies to both commercial and non-commercial use, including
+     personal, academic, and research activities.
+
+3. Contributions
+   - Any contribution to the Software (including but not limited to patches, pull
+     requests, and code snippets) shall be deemed irrevocably licensed under the
+     same terms of this license.
+   - By submitting a contribution, the contributor represents and warrants that
+     they have the necessary rights to grant such license and that, to the best
+     of their knowledge, the contribution does not infringe the rights of third
+     parties.
+
+4. No Trademark License
+   - This license does not grant any rights to use trade names, trademarks, logos,
+     or visual identities associated with "Process Tracker" or "Cairo Resendiz".
+   - Any use of trademarks, logos, or trade names requires separate and express
+     authorization from the respective owner.
+
+5. Termination
+   - Any violation of this license, particularly of clause 2 (AI Use Restriction)
+     or clause 1 (Attribution), will result in the automatic termination of the
+     rights granted by this license.
+   - Upon termination, the user must immediately cease any use, copying,
+     distribution, or exploitation of the Software, except as allowed by other
+     licenses that may apply and have been explicitly granted by the author.
+
+6. Disclaimer
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
+

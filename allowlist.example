@@ -1,0 +1,15 @@
+# Allowlist format:
+# name:ProcessName
+# path:/full/path/to/executable
+# hash:sha256hex
+# uid:501
+# ppid:1
+# arg:--flag-or-substring
+#
+# Export examples:
+#   --export-csv export.csv --export-jsonl export.jsonl
+#   --export-all-samples (stealth mode only)
+
+name:launchd
+name:Finder
+path:/System/Library/CoreServices/Finder.app/Contents/MacOS/Finder
