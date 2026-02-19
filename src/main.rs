@@ -302,7 +302,25 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
                 \x1b[36m | |   | | | (_) | (_|  __/\\__ \\ \x1b[35m| || | | (_| | (__|   <  __/ |    \x1b[0m\n\
                 \x1b[36m |_|   |_|  \\___/ \\___\\___||___/ \x1b[35m|_||_|  \\__,_|\\___|_|\\_\\___|_|    \x1b[0m\n";
     println!("{}", logo);
-    println!("\x1b[32m\x1b[1m🛡️  Process Tracker Daemon started. Monitoring processes...\x1b[0m");
+
+    if let Some(profile_name) = &args.profile {
+        println!("\x1b[1m\x1b[34m[PROFILE]\x1b[0m Activo: \x1b[32m{}\x1b[0m", profile_name);
+    } else {
+        println!("\x1b[1m\x1b[34m[PROFILE]\x1b[0m Activo: \x1b[32mdefault (allowlist.txt)\x1b[0m");
+    }
+
+    if !allowlist.names.is_empty() || !allowlist.paths.is_empty() {
+        println!("\x1b[1m\x1b[34m[RULES]\x1b[0m Procesos listados en perfil:");
+        for name in &allowlist.names {
+            println!("  - \x1b[36m[Name]\x1b[0m {}", name);
+        }
+        for path in &allowlist.paths {
+            println!("  - \x1b[35m[Path]\x1b[0m {}", path);
+        }
+        println!();
+    }
+
+    println!("\x1b[32m\x1b[1m🛡️  Process Tracker Daemon started. Monitoring processes...\x1b[0m\n");
 
     loop {
         let processes = match platform::list_processes() {
