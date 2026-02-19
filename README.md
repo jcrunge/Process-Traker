@@ -1,5 +1,7 @@
 # Process Tracker
 
+> **Take the power back into your hands.** Know exactly what's running on your machine, when, and why.
+
 Minimal process tracker with strict allowlist, optional enforcement, stealth anomaly reporting, and optional CSV/JSONL export.
 
 ## Philosophy

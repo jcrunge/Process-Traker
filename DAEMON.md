@@ -1,6 +1,6 @@
 # 🛡️ Daemon Mode — Process Tracker
 
-> _"Saber qué corre en tu máquina, incluso cuando tú no estás mirando."_
+> *"Take the power back into your hands. Know what's running on your machine, even when you're not looking."*
 
 ## ¿Qué es el Modo Daemon?
 
