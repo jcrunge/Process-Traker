@@ -11,7 +11,9 @@ Minimal process tracker with strict allowlist, optional enforcement, stealth ano
 ## Quick Start (macOS)
 1. Copy `allowlist.example` to `allowlist.txt` and edit.
 2. Run:
-   - Report unknown: `cargo run -- --config allowlist.txt`
+   - Daemon mode: `cargo run -- --daemon` (continuously monitors, auto-detects macOS system processes)
+   - Read the [Daemon Mode Guide](DAEMON.md) for full details on profiles and phases.
+   - Report unknown (single-shot): `cargo run -- --config allowlist.txt`
    - Enforce: `cargo run -- --config allowlist.txt --enforce`
    - Stealth: `cargo run -- --stealth`
 
@@ -29,11 +31,12 @@ arg:--flag-or-substring
 - Detects CPU/RAM spikes and sustained anomalies.
 - Use `--sustain-seconds` for time-based sustained detection.
 
-## Export
+## Export & Logging
 ```
 --export-csv [FILE]     (default: export.csv)
 --export-jsonl [FILE]   (default: export.jsonl)
 --export-all-samples    (stealth mode only)
+--audit-log [FILE]      (daemon mode only, default: audit.log)
 ```
 
 ## Safety

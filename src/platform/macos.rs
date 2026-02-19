@@ -298,3 +298,19 @@ fn get_args(pid: i32) -> Vec<String> {
 
     args
 }
+
+const SYSTEM_PREFIXES: &[&str] = &[
+    "/System/",
+    "/usr/libexec/",
+    "/usr/sbin/",
+    "/usr/bin/",
+    "/sbin/",
+    "/Library/Apple/",
+];
+
+pub fn is_system_process(info: &ProcessInfo) -> bool {
+    match &info.path {
+        Some(path) => SYSTEM_PREFIXES.iter().any(|p| path.starts_with(p)),
+        None => false,
+    }
+}

@@ -46,3 +46,7 @@ pub fn total_mem_bytes() -> Result<u64, String> {
 pub fn kill_process(pid: u32) -> Result<(), String> {
     platform_impl::kill_process(pid)
 }
+
+pub fn is_system_process(info: &ProcessInfo) -> bool {
+    platform_impl::is_system_process(info)
+}

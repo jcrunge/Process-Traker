@@ -1,0 +1,7 @@
+# Perfil: Sin distracciones
+# Solo herramientas esenciales de desarrollo
+
+name:iTerm2
+name:nvim
+name:tmux
+path:/Applications/Cursor.app/Contents/MacOS/Cursor

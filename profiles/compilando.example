@@ -1,0 +1,10 @@
+# Perfil: Compilando
+# Herramientas de desarrollo completas
+
+name:iTerm2
+name:nvim
+name:cargo
+name:rustc
+name:node
+path:/Applications/Docker.app/Contents/MacOS/Docker Desktop
+path:/Applications/Brave Browser.app/Contents/MacOS/Brave Browser

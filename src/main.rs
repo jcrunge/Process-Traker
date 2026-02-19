@@ -5,14 +5,16 @@ mod platform;
 mod policy;
 mod tree;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::env;
 use std::path::PathBuf;
+use std::time::Duration;
 
 struct Args {
     config_path: PathBuf,
     enforce: bool,
     stealth: bool,
+    daemon: bool,
     interval_ms: u64,
     cpu_threshold: f64,
     ram_threshold: f64,
@@ -22,26 +24,33 @@ struct Args {
     export_csv: Option<PathBuf>,
     export_jsonl: Option<PathBuf>,
     export_all_samples: bool,
+    audit_log: Option<PathBuf>,
+    profile: Option<String>,
+    no_ignore_system: bool,
     show_help: bool,
 }
 
 fn usage() -> &'static str {
-    "process_tracker [--config FILE] [--enforce] [--stealth]\n\
-    \n\
-    Options:\n\
-      --config FILE         allowlist file (default: allowlist.txt)\n\
-      --enforce             kill unknown processes (non-stealth only)\n\
-      --stealth             monitor anomalies only (CPU/RAM)\n\
-      --interval MS         sample interval in ms (default: 1000)\n\
-      --cpu-threshold PCT   CPU anomaly threshold (default: 80)\n\
-      --ram-threshold PCT   RAM anomaly threshold (default: 20)\n\
-      --sustain N           samples needed to flag sustained anomaly (default: 3)\n\
-      --sustain-seconds S   seconds needed to flag sustained anomaly\n\
-      --spike-delta PCT     delta CPU spike threshold (default: 30)\n\
-      --export-csv [FILE]   export CSV (default: export.csv)\n\
-      --export-jsonl [FILE] export JSONL (default: export.jsonl)\n\
-      --export-all-samples  export every sample in stealth mode\n\
-      -h, --help            show help\n"
+    "process_tracker [OPTIONS]
+
+Options:
+  --daemon              Activar modo daemon (loop continuo)
+  --profile NAME        Cargar profiles/NAME.txt como allowlist
+  --audit-log [FILE]    Log de eventos (default: audit.log)
+  --no-ignore-system    No auto-detectar procesos de macOS
+  --config FILE         allowlist file (default: allowlist.txt)
+  --enforce             kill unknown processes
+  --stealth             monitor anomalies only (CPU/RAM)
+  --interval MS         sample interval in ms (default: 1000)
+  --cpu-threshold PCT   CPU anomaly threshold (default: 80)
+  --ram-threshold PCT   RAM anomaly threshold (default: 20)
+  --sustain N           samples needed to flag sustained anomaly (default: 3)
+  --sustain-seconds S   seconds needed to flag sustained anomaly
+  --spike-delta PCT     delta CPU spike threshold (default: 30)
+  --export-csv [FILE]   export CSV (default: export.csv)
+  --export-jsonl [FILE] export JSONL (default: export.jsonl)
+  --export-all-samples  export every sample in stealth mode
+  -h, --help            show help\n"
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -50,6 +59,7 @@ fn parse_args() -> Result<Args, String> {
         config_path: PathBuf::from("allowlist.txt"),
         enforce: false,
         stealth: false,
+        daemon: false,
         interval_ms: 1000,
         cpu_threshold: 80.0,
         ram_threshold: 20.0,
@@ -59,6 +69,9 @@ fn parse_args() -> Result<Args, String> {
         export_csv: None,
         export_jsonl: None,
         export_all_samples: false,
+        audit_log: None,
+        profile: None,
+        no_ignore_system: false,
         show_help: false,
     };
 
@@ -130,6 +143,26 @@ fn parse_args() -> Result<Args, String> {
             "--export-all-samples" => {
                 parsed.export_all_samples = true;
             }
+            "--daemon" => parsed.daemon = true,
+            "--no-ignore-system" => parsed.no_ignore_system = true,
+            "--audit-log" => {
+                if let Some(value) = args.get(idx + 1) {
+                    if !value.starts_with('-') {
+                        parsed.audit_log = Some(PathBuf::from(value));
+                        idx += 1;
+                    } else {
+                        parsed.audit_log = Some(PathBuf::from("audit.log"));
+                    }
+                } else {
+                    parsed.audit_log = Some(PathBuf::from("audit.log"));
+                }
+            }
+            "--profile" => {
+                let value = args.get(idx + 1).ok_or("missing --profile value")?;
+                parsed.config_path = PathBuf::from(format!("profiles/{}.txt", value));
+                parsed.profile = Some(value.clone());
+                idx += 1;
+            }
             "-h" | "--help" => parsed.show_help = true,
             _ => return Err(format!("unknown argument: {}", arg)),
         }
@@ -191,6 +224,14 @@ fn main() {
         }
     };
 
+    if args.daemon {
+        run_daemon_loop(args, allowlist, exporter.as_mut());
+    } else {
+        run_single_shot(args, allowlist, exporter.as_mut());
+    }
+}
+
+fn run_single_shot(args: Args, allowlist: config::Allowlist, mut exporter: Option<&mut export::Exporter>) {
     let processes = match platform::list_processes() {
         Ok(processes) => processes,
         Err(err) => {
@@ -212,7 +253,7 @@ fn main() {
             proc.pid, proc.uid, proc.ppid, proc.name, path
         );
 
-        if let Some(exporter) = exporter.as_mut() {
+        if let Some(exporter) = exporter.as_deref_mut() {
             let ts = export::now_ts();
             let event = export::UnknownEvent {
                 ts,
@@ -233,5 +274,143 @@ fn main() {
                 Err(err) => eprintln!("kill failed pid={} err={}", proc.pid, err),
             }
         }
+    }
+}
+
+fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Option<&mut export::Exporter>) {
+    let mut audit_writer = args.audit_log.as_ref().and_then(|path| {
+        export::Exporter::new(&export::ExportConfig {
+            csv_path: None,
+            jsonl_path: Some(path.clone()),
+        })
+        .ok()
+        .flatten()
+    });
+
+    let self_pid = std::process::id();
+    let num_cpus = platform::num_cpus().unwrap_or(1) as f64;
+    let total_mem = platform::total_mem_bytes().unwrap_or(1) as f64;
+
+    let mut reported_unknowns = HashSet::new();
+    let mut prev_cpu: HashMap<u32, u64> = HashMap::new();
+    let mut hash_cache = HashMap::new();
+
+    println!("Process Tracker Daemon started. Monitoring processes...");
+
+    loop {
+        let processes = match platform::list_processes() {
+            Ok(p) => p,
+            Err(e) => {
+                eprintln!("error fetching processes: {}", e);
+                std::thread::sleep(Duration::from_millis(args.interval_ms));
+                continue;
+            }
+        };
+
+        let tree = tree::ProcTree::from_processes(processes);
+        let mut alive_pids = HashSet::new();
+
+        for proc in tree.walk() {
+            alive_pids.insert(proc.pid);
+
+            // 1. Self check
+            if proc.pid == self_pid {
+                continue;
+            }
+
+            // 2. macOS System process check
+            if !args.no_ignore_system && platform::is_system_process(proc) {
+                if let Ok(sample) = platform::sample_process(proc.pid) {
+                    if let Some(prev_ns) = prev_cpu.get(&proc.pid) {
+                        let delta_cpu = sample.cpu_ns.saturating_sub(*prev_ns) as f64;
+                        let interval_ns = (args.interval_ms as f64) * 1_000_000.0;
+                        let cpu_pct = if interval_ns > 0.0 && num_cpus > 0.0 {
+                            (delta_cpu / interval_ns / num_cpus) * 100.0
+                        } else {
+                            0.0
+                        };
+                        let ram_pct = if total_mem > 0.0 {
+                            (sample.rss_bytes as f64 / total_mem) * 100.0
+                        } else {
+                            0.0
+                        };
+
+                        if cpu_pct >= args.cpu_threshold || ram_pct >= args.ram_threshold {
+                            println!(
+                                "system-overload pid={} name={} cpu={:.2} ram={:.2}",
+                                proc.pid, proc.name, cpu_pct, ram_pct
+                            );
+                            
+                            let ts = export::now_ts();
+                            let event = export::SystemOverloadEvent {
+                                ts,
+                                pid: proc.pid,
+                                name: &proc.name,
+                                path: proc.path.as_deref(),
+                                cpu_pct,
+                                ram_pct,
+                            };
+                            
+                            if let Some(exp) = exporter.as_deref_mut() {
+                                let _ = exp.write_system_overload(&event);
+                            }
+                            if let Some(audit) = audit_writer.as_mut() {
+                                let _ = audit.write_system_overload(&event);
+                            }
+                        }
+                    }
+                    prev_cpu.insert(proc.pid, sample.cpu_ns);
+                }
+                continue; // Do not apply allowlist checks to system processes
+            }
+
+            // 3. Allowlist check
+            if policy::is_allowed(proc, &allowlist, &mut hash_cache) {
+                continue;
+            }
+
+            // 4. Report & Log (Deduplicated)
+            if reported_unknowns.insert(proc.pid) {
+                let path = proc.path.as_deref().unwrap_or("-");
+                let action = if args.enforce { "killed" } else { "logged" };
+                
+                println!(
+                    "unknown pid={} uid={} ppid={} name={} path={} action={}",
+                    proc.pid, proc.uid, proc.ppid, proc.name, path, action
+                );
+
+                let ts = export::now_ts();
+                let event = export::AuditEvent {
+                    ts,
+                    pid: proc.pid,
+                    uid: proc.uid,
+                    ppid: proc.ppid,
+                    name: &proc.name,
+                    path: proc.path.as_deref(),
+                    action,
+                };
+
+                if let Some(exp) = exporter.as_deref_mut() {
+                    let _ = exp.write_audit(&event);
+                }
+                if let Some(audit) = audit_writer.as_mut() {
+                    let _ = audit.write_audit(&event);
+                }
+
+                // 5. Enforce 
+                if args.enforce {
+                    match platform::kill_process(proc.pid) {
+                        Ok(()) => println!("killed pid={}", proc.pid),
+                        Err(err) => eprintln!("kill failed pid={} err={}", proc.pid, err),
+                    }
+                }
+            }
+        }
+
+        // Cleanup tracked PID state for processes that died
+        reported_unknowns.retain(|pid| alive_pids.contains(pid));
+        prev_cpu.retain(|pid, _| alive_pids.contains(pid));
+
+        std::thread::sleep(Duration::from_millis(args.interval_ms));
     }
 }

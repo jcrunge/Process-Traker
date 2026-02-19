@@ -43,6 +43,25 @@ pub struct SampleEvent<'a> {
     pub ram_pct: f64,
 }
 
+pub struct AuditEvent<'a> {
+    pub ts: u64,
+    pub pid: u32,
+    pub uid: u32,
+    pub ppid: u32,
+    pub name: &'a str,
+    pub path: Option<&'a str>,
+    pub action: &'a str,
+}
+
+pub struct SystemOverloadEvent<'a> {
+    pub ts: u64,
+    pub pid: u32,
+    pub name: &'a str,
+    pub path: Option<&'a str>,
+    pub cpu_pct: f64,
+    pub ram_pct: f64,
+}
+
 impl Exporter {
     pub fn new(config: &ExportConfig) -> Result<Option<Exporter>, String> {
         let csv = match config.csv_path.as_ref() {
@@ -135,6 +154,62 @@ impl Exporter {
             event.pid,
             Some(event.uid),
             Some(event.ppid),
+            event.name,
+            event.path,
+            Some(event.cpu_pct),
+            Some(event.ram_pct),
+            None,
+        )?;
+        Ok(())
+    }
+
+    pub fn write_audit(&mut self, event: &AuditEvent) -> Result<(), String> {
+        self.write_csv(
+            event.ts,
+            "audit",
+            Some(event.pid),
+            Some(event.uid),
+            Some(event.ppid),
+            Some(event.name),
+            event.path,
+            None,
+            None,
+            Some(event.action),
+        )?;
+        self.write_json(
+            event.ts,
+            "audit",
+            event.pid,
+            Some(event.uid),
+            Some(event.ppid),
+            event.name,
+            event.path,
+            None,
+            None,
+            Some(event.action),
+        )?;
+        Ok(())
+    }
+
+    pub fn write_system_overload(&mut self, event: &SystemOverloadEvent) -> Result<(), String> {
+        self.write_csv(
+            event.ts,
+            "system-overload",
+            Some(event.pid),
+            None,
+            None,
+            Some(event.name),
+            event.path,
+            Some(event.cpu_pct),
+            Some(event.ram_pct),
+            None,
+        )?;
+        self.write_json(
+            event.ts,
+            "system-overload",
+            event.pid,
+            None,
+            None,
             event.name,
             event.path,
             Some(event.cpu_pct),

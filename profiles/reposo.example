@@ -1,0 +1,5 @@
+# Perfil: Reposo estricto
+# Vacío o solo con procesos críticos de usuario
+# Todos los procesos de sistema ya se detectan automáticamente
+# Ej:
+# name:Finder

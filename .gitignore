@@ -3,3 +3,8 @@
 **/.DS_Store
 /.idea
 /.vscode
+*.log
+*.csv
+*.resolved
+allowlist.txt
+profiles/*.txt
