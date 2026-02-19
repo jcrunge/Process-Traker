@@ -249,7 +249,7 @@ fn run_single_shot(args: Args, allowlist: config::Allowlist, mut exporter: Optio
 
         let path = proc.path.as_deref().unwrap_or("-");
         println!(
-            "unknown pid={} uid={} ppid={} name={} path={}",
+            "\x1b[31m[UNKNOWN]\x1b[0m pid={} uid={} ppid={} name=\x1b[1m{}\x1b[0m path=\x1b[36m{}\x1b[0m",
             proc.pid, proc.uid, proc.ppid, proc.name, path
         );
 
@@ -270,8 +270,8 @@ fn run_single_shot(args: Args, allowlist: config::Allowlist, mut exporter: Optio
 
         if args.enforce {
             match platform::kill_process(proc.pid) {
-                Ok(()) => println!("killed pid={}", proc.pid),
-                Err(err) => eprintln!("kill failed pid={} err={}", proc.pid, err),
+                Ok(()) => println!("\x1b[31m\x1b[1m[KILLED]\x1b[0m pid={}", proc.pid),
+                Err(err) => eprintln!("\x1b[31m[ERROR]\x1b[0m kill failed pid={} err={}", proc.pid, err),
             }
         }
     }
@@ -295,7 +295,14 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
     let mut prev_cpu: HashMap<u32, u64> = HashMap::new();
     let mut hash_cache = HashMap::new();
 
-    println!("Process Tracker Daemon started. Monitoring processes...");
+    let logo = "\n\x1b[36m  _____                       \x1b[35m _______             _              \x1b[0m\n\
+                \x1b[36m |  __ \\                      \x1b[35m|__   __|           | |             \x1b[0m\n\
+                \x1b[36m | |__) | __ ___   ___ ___  ___  \x1b[35m| | _ __ __ _  ___| | _____ _ __  \x1b[0m\n\
+                \x1b[36m |  ___/ '__/ _ \\ / __/ _ \\/ __| \x1b[35m| || '__/ _` |/ __| |/ / _ \\ '__|\x1b[0m\n\
+                \x1b[36m | |   | | | (_) | (_|  __/\\__ \\ \x1b[35m| || | | (_| | (__|   <  __/ |    \x1b[0m\n\
+                \x1b[36m |_|   |_|  \\___/ \\___\\___||___/ \x1b[35m|_||_|  \\__,_|\\___|_|\\_\\___|_|    \x1b[0m\n";
+    println!("{}", logo);
+    println!("\x1b[32m\x1b[1m🛡️  Process Tracker Daemon started. Monitoring processes...\x1b[0m");
 
     loop {
         let processes = match platform::list_processes() {
@@ -337,7 +344,7 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
 
                         if cpu_pct >= args.cpu_threshold || ram_pct >= args.ram_threshold {
                             println!(
-                                "system-overload pid={} name={} cpu={:.2} ram={:.2}",
+                                "\x1b[33m[OVERLOAD]\x1b[0m pid={} name=\x1b[1m{}\x1b[0m cpu=\x1b[31m{:.2}%\x1b[0m ram=\x1b[31m{:.2}%\x1b[0m",
                                 proc.pid, proc.name, cpu_pct, ram_pct
                             );
                             
@@ -372,10 +379,10 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
             // 4. Report & Log (Deduplicated)
             if reported_unknowns.insert(proc.pid) {
                 let path = proc.path.as_deref().unwrap_or("-");
-                let action = if args.enforce { "killed" } else { "logged" };
+                let action = if args.enforce { "\x1b[31mkilled\x1b[0m" } else { "\x1b[33mlogged\x1b[0m" };
                 
                 println!(
-                    "unknown pid={} uid={} ppid={} name={} path={} action={}",
+                    "\x1b[31m[UNKNOWN]\x1b[0m pid={} uid={} ppid={} name=\x1b[1m{}\x1b[0m path=\x1b[36m{}\x1b[0m action={}",
                     proc.pid, proc.uid, proc.ppid, proc.name, path, action
                 );
 
@@ -387,7 +394,7 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
                     ppid: proc.ppid,
                     name: &proc.name,
                     path: proc.path.as_deref(),
-                    action,
+                    action: if args.enforce { "killed" } else { "logged" },
                 };
 
                 if let Some(exp) = exporter.as_deref_mut() {
@@ -400,8 +407,8 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
                 // 5. Enforce 
                 if args.enforce {
                     match platform::kill_process(proc.pid) {
-                        Ok(()) => println!("killed pid={}", proc.pid),
-                        Err(err) => eprintln!("kill failed pid={} err={}", proc.pid, err),
+                        Ok(()) => println!("\x1b[31m\x1b[1m[KILLED]\x1b[0m pid={}", proc.pid),
+                        Err(err) => eprintln!("\x1b[31m[ERROR]\x1b[0m kill failed pid={} err={}", proc.pid, err),
                     }
                 }
             }
