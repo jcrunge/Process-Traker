@@ -9,6 +9,7 @@ pub fn is_allowed(
     info: &ProcessInfo,
     allowlist: &Allowlist,
     hash_cache: &mut HashMap<String, String>,
+    sig_cache: &mut HashMap<String, Option<crate::signature::SignatureInfo>>,
 ) -> bool {
     if allowlist.names.contains(&info.name) {
         return true;
@@ -44,6 +45,22 @@ pub fn is_allowed(
             });
             if !entry.is_empty() && allowlist.hashes.contains(&entry.to_lowercase()) {
                 return true;
+            }
+        }
+    }
+
+    if !allowlist.teams.is_empty() || !allowlist.authorities.is_empty() {
+        if let Some(path) = &info.path {
+            let sig_opt = sig_cache.entry(path.clone()).or_insert_with(|| {
+                crate::signature::get_signature_info(path)
+            });
+            if let Some(sig) = sig_opt {
+                if let Some(team) = &sig.team_id {
+                    if allowlist.teams.contains(team) { return true; }
+                }
+                if let Some(auth) = &sig.authority {
+                    if allowlist.authorities.contains(auth) { return true; }
+                }
             }
         }
     }

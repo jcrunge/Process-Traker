@@ -1,14 +1,25 @@
 mod config;
 mod export;
+mod ipc;
 mod monitor;
 mod platform;
 mod policy;
+mod signature;
 mod tree;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::env;
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 use std::time::Duration;
+
+struct ReportItem {
+    pid: u32,
+    name: String,
+    path: String,
+    action: String,
+    sig: Option<signature::SignatureInfo>,
+}
 
 struct Args {
     config_path: PathBuf,
@@ -26,15 +37,18 @@ struct Args {
     export_all_samples: bool,
     audit_log: Option<PathBuf>,
     profile: Option<String>,
+    set_profile: Option<String>,
     no_ignore_system: bool,
     show_help: bool,
+    status: bool,
 }
 
 fn usage() -> &'static str {
-    "process_tracker [OPTIONS]
+    "zen [OPTIONS]
 
 Options:
   --daemon              Activar modo daemon (loop continuo)
+  --status              Consultar estado y memoria del daemon activo
   --profile NAME        Cargar profiles/NAME.txt como allowlist
   --audit-log [FILE]    Log de eventos (default: audit.log)
   --no-ignore-system    No auto-detectar procesos de macOS
@@ -50,6 +64,7 @@ Options:
   --export-csv [FILE]   export CSV (default: export.csv)
   --export-jsonl [FILE] export JSONL (default: export.jsonl)
   --export-all-samples  export every sample in stealth mode
+  --set-profile NAME    [IPC] Cambiar perfil en caliente (daemon mode)
   -h, --help            show help\n"
 }
 
@@ -71,8 +86,10 @@ fn parse_args() -> Result<Args, String> {
         export_all_samples: false,
         audit_log: None,
         profile: None,
+        set_profile: None,
         no_ignore_system: false,
         show_help: false,
+        status: false,
     };
 
     let mut idx = 0usize;
@@ -163,6 +180,12 @@ fn parse_args() -> Result<Args, String> {
                 parsed.profile = Some(value.clone());
                 idx += 1;
             }
+            "--set-profile" => {
+                let value = args.get(idx + 1).ok_or("missing --set-profile value")?;
+                parsed.set_profile = Some(value.clone());
+                idx += 1;
+            }
+            "--status" => parsed.status = true,
             "-h" | "--help" => parsed.show_help = true,
             _ => return Err(format!("unknown argument: {}", arg)),
         }
@@ -184,6 +207,22 @@ fn main() {
 
     if args.show_help {
         println!("{}", usage());
+        return;
+    }
+
+    if let Some(profile) = &args.set_profile {
+        match ipc::send_command(&format!("SET_PROFILE {}", profile)) {
+            Ok(resp) => {
+                print!("{}", resp);
+                if resp.starts_with("ERROR") {
+                    std::process::exit(1);
+                }
+            }
+            Err(e) => {
+                eprintln!("\x1b[31m[IPC ERROR]\x1b[0m {}", e);
+                std::process::exit(1);
+            }
+        }
         return;
     }
 
@@ -227,11 +266,73 @@ fn main() {
     if args.daemon {
         run_daemon_loop(args, allowlist, exporter.as_mut());
     } else {
-        run_single_shot(args, allowlist, exporter.as_mut());
+        run_single_shot(&args, &allowlist, exporter.as_mut());
     }
 }
 
-fn run_single_shot(args: Args, allowlist: config::Allowlist, mut exporter: Option<&mut export::Exporter>) {
+fn print_grouped_report(items: &[ReportItem]) {
+    if items.is_empty() {
+        return;
+    }
+
+    let mut groups: BTreeMap<String, Vec<&ReportItem>> = BTreeMap::new();
+    for item in items {
+        let key = match &item.sig {
+            Some(sig) => sig.display_name(),
+            None => "⚠️  SIN FIRMA (Unsigned / Desconocido)".to_string(),
+        };
+        groups.entry(key).or_default().push(item);
+    }
+
+    let has_unsigned = items.iter().any(|item| item.sig.is_none());
+
+    if has_unsigned {
+        println!("\n\x1b[1;35m💅 [INSPECTORA DE CHISMES]\x1b[0m \x1b[1;31m⚠️ ¡Escándalo! Hay gente sospechosa merodeando sin identificación...\x1b[0m");
+    } else {
+        println!("\n\x1b[1;35m💅 [INSPECTORA DE CHISMES]\x1b[0m ¡Uy, qué buen chisme! Mira quiénes andan por aquí...\x1b[0m");
+    }
+
+    for (team, procs) in groups {
+        let is_unsigned = team.contains("SIN FIRMA");
+        let team_color = if is_unsigned { "\x1b[1;31m" } else { "\x1b[1;36m" };
+        let team_icon = if is_unsigned { "🚫" } else { "📦 TEAM:" };
+        
+        let team_search_url = if is_unsigned {
+            "".to_string()
+        } else {
+            let team_id = procs[0].sig.as_ref().and_then(|s| s.team_id.as_ref()).map(|s| s.as_str()).unwrap_or("");
+            let url = format!("https://www.google.com/search?q=macOS+developer+Team+ID+%22{}%22", team_id);
+            format!(" \x1b[34m[\x1b]8;;{}\x1b\\🔍 Buscar Team\x1b]8;;\x1b\\]\x1b[0m", url)
+        };
+
+        println!("\n{} {}{}\x1b[0m{}", team_icon, team_color, team, team_search_url);
+        
+        for (i, item) in procs.iter().enumerate() {
+            let is_last = i == procs.len() - 1;
+            let connector = if is_last { " └─" } else { " ├─" };
+            let status_icon = if item.sig.is_some() { "✅" } else { "❌" };
+            let action_color = if item.action == "killed" { "\x1b[31m" } else { "\x1b[33m" };
+            
+            let file_name = std::path::Path::new(&item.path).file_name().unwrap_or_default().to_string_lossy().replace(' ', "+");
+            let proc_name = item.name.replace(' ', "+");
+            
+            let proc_search_url = if is_unsigned {
+                format!("https://www.google.com/search?q=macOS+process+%22{}%22+OR+%22{}%22+malware+safe", proc_name, file_name)
+            } else {
+                let team_id = item.sig.as_ref().and_then(|s| s.team_id.as_ref()).map(|s| s.as_str()).unwrap_or("");
+                format!("https://www.google.com/search?q=macOS+process+%22{}%22+%22{}%22+Team+ID+%22{}%22", proc_name, file_name, team_id)
+            };
+            
+            println!(
+                "{} {} [{}] \x1b[1m{}\x1b[0m \x1b[38;5;242m({})\x1b[0m -> {}{}\x1b[0m \x1b[34m[\x1b]8;;{}\x1b\\🔍 Investigar\x1b]8;;\x1b\\]\x1b[0m",
+                connector, status_icon, item.pid, item.name, item.path, action_color, item.action, proc_search_url
+            );
+        }
+    }
+    println!();
+}
+
+fn run_single_shot(_args: &Args, allowlist: &config::Allowlist, mut exporter: Option<&mut export::Exporter>) {
     let processes = match platform::list_processes() {
         Ok(processes) => processes,
         Err(err) => {
@@ -242,16 +343,26 @@ fn run_single_shot(args: Args, allowlist: config::Allowlist, mut exporter: Optio
 
     let tree = tree::ProcTree::from_processes(processes);
     let mut hash_cache = HashMap::new();
+    let mut sig_cache = HashMap::new();
+    let mut report_items = Vec::new();
+
     for proc in tree.walk() {
-        if policy::is_allowed(proc, &allowlist, &mut hash_cache) {
+        if policy::is_allowed(proc, &allowlist, &mut hash_cache, &mut sig_cache) {
             continue;
         }
 
-        let path = proc.path.as_deref().unwrap_or("-");
-        println!(
-            "\x1b[31m[UNKNOWN]\x1b[0m pid={} uid={} ppid={} name=\x1b[1m{}\x1b[0m path=\x1b[36m{}\x1b[0m",
-            proc.pid, proc.uid, proc.ppid, proc.name, path
-        );
+        let path = proc.path.as_deref().unwrap_or("-").to_string();
+        let sig_info = proc.path.as_deref().and_then(|p| {
+            sig_cache.entry(p.to_string()).or_insert_with(|| signature::get_signature_info(p)).clone()
+        });
+        
+        report_items.push(ReportItem {
+            pid: proc.pid,
+            name: proc.name.clone(),
+            path,
+            action: "logged".to_string(),
+            sig: sig_info,
+        });
 
         if let Some(exporter) = exporter.as_deref_mut() {
             let ts = export::now_ts();
@@ -263,18 +374,11 @@ fn run_single_shot(args: Args, allowlist: config::Allowlist, mut exporter: Optio
                 name: &proc.name,
                 path: proc.path.as_deref(),
             };
-            if let Err(err) = exporter.write_unknown(&event) {
-                eprintln!("export failed pid={} err={}", proc.pid, err);
-            }
-        }
-
-        if args.enforce {
-            match platform::kill_process(proc.pid) {
-                Ok(()) => println!("\x1b[31m\x1b[1m[KILLED]\x1b[0m pid={}", proc.pid),
-                Err(err) => eprintln!("\x1b[31m[ERROR]\x1b[0m kill failed pid={} err={}", proc.pid, err),
-            }
+            let _ = exporter.write_unknown(&event);
         }
     }
+
+    print_grouped_report(&report_items);
 }
 
 fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Option<&mut export::Exporter>) {
@@ -287,21 +391,42 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
         .flatten()
     });
 
-    let self_pid = std::process::id();
+
     let num_cpus = platform::num_cpus().unwrap_or(1) as f64;
     let total_mem = platform::total_mem_bytes().unwrap_or(1) as f64;
 
     let mut reported_unknowns = HashSet::new();
     let mut prev_cpu: HashMap<u32, u64> = HashMap::new();
     let mut hash_cache = HashMap::new();
+    let mut sig_cache = HashMap::new();
 
-    let logo = "\n\x1b[36m  _____                       \x1b[35m _______             _              \x1b[0m\n\
-                \x1b[36m |  __ \\                      \x1b[35m|__   __|           | |             \x1b[0m\n\
-                \x1b[36m | |__) | __ ___   ___ ___  ___  \x1b[35m| | _ __ __ _  ___| | _____ _ __  \x1b[0m\n\
-                \x1b[36m |  ___/ '__/ _ \\ / __/ _ \\/ __| \x1b[35m| || '__/ _` |/ __| |/ / _ \\ '__|\x1b[0m\n\
-                \x1b[36m | |   | | | (_) | (_|  __/\\__ \\ \x1b[35m| || | | (_| | (__|   <  __/ |    \x1b[0m\n\
-                \x1b[36m |_|   |_|  \\___/ \\___\\___||___/ \x1b[35m|_||_|  \\__,_|\\___|_|\\_\\___|_|    \x1b[0m\n";
+    let logo = "\n\
+        \x1b[1;33m            .                     \x1b[0m\n\
+        \x1b[1;33m          \\ | /                  \x1b[0m\n\
+        \x1b[1;33m        '-.;;;.-'                 \x1b[0m\n\
+        \x1b[1;33m       -==;\x1b[1;37mZEN\x1b[1;33m;==-              \x1b[0m\n\
+        \x1b[1;33m        .-';;;'-.                  \x1b[0m\n\
+        \x1b[1;33m          / | \\                   \x1b[32m* *\x1b[0m\n\
+        \x1b[1;33m            '                   \x1b[32m*  *  *\x1b[0m\n\
+        \x1b[36m ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\x1b[33m|\x1b[36m~~~~~~~~~\x1b[0m\n\
+        \x1b[33m                     _.-'   '-._   |\x1b[0m\n\
+        \x1b[33m                   .'           '._|_\x1b[0m\n\
+        \x1b[34m             ~~~  /                  \\  ~~~\x1b[0m\n\
+        \x1b[34m            ~~~~ ~~~ ~~~ ~~~ ~~~ ~~~~~~ ~~~~\x1b[0m\n";
     println!("{}", logo);
+
+    if args.status {
+        match ipc::send_command("STATUS") {
+            Ok(resp) => {
+                println!("{}", resp);
+                return;
+            }
+            Err(e) => {
+                eprintln!("\x1b[31m[ERROR]\x1b[0m Could not get status: {}", e);
+                std::process::exit(1);
+            }
+        }
+    }
 
     if let Some(profile_name) = &args.profile {
         println!("\x1b[1m\x1b[34m[PROFILE]\x1b[0m Activo: \x1b[32m{}\x1b[0m", profile_name);
@@ -320,7 +445,13 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
         println!();
     }
 
-    println!("\x1b[32m\x1b[1m🛡️  Process Tracker Daemon started. Monitoring processes...\x1b[0m\n");
+    println!("\x1b[1m\x1b[34m[IPC]\x1b[0m Listening on /tmp/zen.sock");
+    
+    let self_pid = std::process::id();
+    let allowlist_arc = Arc::new(RwLock::new(allowlist));
+    ipc::start_server(allowlist_arc.clone(), self_pid);
+
+    println!("\x1b[32m\x1b[1m🛡️  Zen Daemon started. Monitoring processes...\x1b[0m\n");
 
     loop {
         let processes = match platform::list_processes() {
@@ -334,6 +465,7 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
 
         let tree = tree::ProcTree::from_processes(processes);
         let mut alive_pids = HashSet::new();
+        let mut unknowns_this_scan = Vec::new();
 
         for proc in tree.walk() {
             alive_pids.insert(proc.pid);
@@ -386,23 +518,34 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
                     }
                     prev_cpu.insert(proc.pid, sample.cpu_ns);
                 }
-                continue; // Do not apply allowlist checks to system processes
+                continue; 
             }
 
             // 3. Allowlist check
-            if policy::is_allowed(proc, &allowlist, &mut hash_cache) {
+            let is_allowed = {
+                let lock = allowlist_arc.read().unwrap();
+                policy::is_allowed(proc, &lock, &mut hash_cache, &mut sig_cache)
+            };
+            if is_allowed {
                 continue;
             }
 
             // 4. Report & Log (Deduplicated)
             if reported_unknowns.insert(proc.pid) {
-                let path = proc.path.as_deref().unwrap_or("-");
-                let action = if args.enforce { "\x1b[31mkilled\x1b[0m" } else { "\x1b[33mlogged\x1b[0m" };
+                let path = proc.path.as_deref().unwrap_or("-").to_string();
+                let action = if args.enforce { "killed" } else { "logged" };
                 
-                println!(
-                    "\x1b[31m[UNKNOWN]\x1b[0m pid={} uid={} ppid={} name=\x1b[1m{}\x1b[0m path=\x1b[36m{}\x1b[0m action={}",
-                    proc.pid, proc.uid, proc.ppid, proc.name, path, action
-                );
+                let sig_info = proc.path.as_deref().and_then(|p| {
+                    sig_cache.entry(p.to_string()).or_insert_with(|| signature::get_signature_info(p)).clone()
+                });
+                
+                unknowns_this_scan.push(ReportItem {
+                    pid: proc.pid,
+                    name: proc.name.clone(),
+                    path,
+                    action: action.to_string(),
+                    sig: sig_info,
+                });
 
                 let ts = export::now_ts();
                 let event = export::AuditEvent {
@@ -412,7 +555,7 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
                     ppid: proc.ppid,
                     name: &proc.name,
                     path: proc.path.as_deref(),
-                    action: if args.enforce { "killed" } else { "logged" },
+                    action,
                 };
 
                 if let Some(exp) = exporter.as_deref_mut() {
@@ -424,12 +567,13 @@ fn run_daemon_loop(args: Args, allowlist: config::Allowlist, mut exporter: Optio
 
                 // 5. Enforce 
                 if args.enforce {
-                    match platform::kill_process(proc.pid) {
-                        Ok(()) => println!("\x1b[31m\x1b[1m[KILLED]\x1b[0m pid={}", proc.pid),
-                        Err(err) => eprintln!("\x1b[31m[ERROR]\x1b[0m kill failed pid={} err={}", proc.pid, err),
-                    }
+                    let _ = platform::kill_process(proc.pid);
                 }
             }
+        }
+
+        if !unknowns_this_scan.is_empty() {
+            print_grouped_report(&unknowns_this_scan);
         }
 
         // Cleanup tracked PID state for processes that died

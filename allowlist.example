@@ -1,10 +1,16 @@
 # Allowlist format:
 # name:ProcessName
 # path:/full/path/to/executable
+# team:TEAM_ID # Opcional: comentario
+# authority:Autoridad Certificadora
 # hash:sha256hex
 # uid:501
 # ppid:1
 # arg:--flag-or-substring
+#
+# Ejemplos de equipos de confianza:
+# team:EQHXZ8M8AV # Google LLC
+# team:UBF8T346G9 # Microsoft Corporation
 #
 # Export examples:
 #   --export-csv export.csv --export-jsonl export.jsonl

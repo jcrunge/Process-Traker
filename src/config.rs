@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Allowlist {
     pub names: HashSet<String>,
     pub paths: HashSet<String>,
@@ -10,6 +10,8 @@ pub struct Allowlist {
     pub uids: HashSet<u32>,
     pub ppids: HashSet<u32>,
     pub args: Vec<String>,
+    pub teams: HashSet<String>,
+    pub authorities: HashSet<String>,
 }
 
 impl Allowlist {
@@ -20,6 +22,8 @@ impl Allowlist {
             && self.uids.is_empty()
             && self.ppids.is_empty()
             && self.args.is_empty()
+            && self.teams.is_empty()
+            && self.authorities.is_empty()
     }
 }
 
@@ -67,6 +71,15 @@ pub fn load_allowlist(path: &Path) -> Result<Allowlist, String> {
             }
             "arg" => {
                 allowlist.args.push(value.to_string());
+            }
+            "team" => {
+                // If there's a comment like team:EQHXZ8M8AV # Google, strip it
+                let v = value.split('#').next().unwrap_or(value).trim();
+                allowlist.teams.insert(v.to_string());
+            }
+            "authority" => {
+                let v = value.split('#').next().unwrap_or(value).trim();
+                allowlist.authorities.insert(v.to_string());
             }
             _ => return Err(format!("unknown key on line {}: {}", idx + 1, key)),
         }

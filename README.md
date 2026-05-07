@@ -1,23 +1,28 @@
-# Process Tracker
+# ZEN: Forense de Procesos & Seguridad 💅
 
-> **Take the power back into your hands.** Know exactly what's running on your machine, when, and why.
+> **"¡Ándale! Aquí hay gente que no se ha presentado..."**  
+> Zen no es solo un tracker; es un sistema forense de identidad para macOS con personalidad propia.
 
-Minimal process tracker with strict allowlist, optional enforcement, stealth anomaly reporting, and optional CSV/JSONL export.
+**ZEN** (v0.3.0) es un monitor de procesos minimalista diseñado bajo la filosofía *RedHat Pro* y *Suckless*. Su misión es proteger tu máquina identificando no solo qué corre, sino quién lo firmó criptográficamente.
 
-## Philosophy
-- Minimalism and explicit behavior (suckless/bspwm-inspired)
-- One job: observe, classify, and (optionally) terminate processes
-- CLI-first, scriptable, no hidden state
-- We build with faith in high-quality code and functionality: correctness and clarity are non-negotiable, and we keep our humor for the bugs
+## 💅 La Inspectora de Chismes
+El alma de Zen es la **Inspectora de Chismes**. Ella no solo te da logs aburridos; ella clasifica la actividad de tu sistema en dos categorías:
+- **✅ Chismes (Seguro):** Procesos conocidos y firmados por desarrolladores en los que confías (Google, Apple, Microsoft, Tailscale).
+- **⚠️ Escándalos (Alerta):** Procesos sin firma, sospechosos o desconocidos que intentan pasar desapercibidos.
 
-## Quick Start (macOS)
-1. Copy `allowlist.example` to `allowlist.txt` and edit.
-2. Run:
-   - Daemon mode: `cargo run -- --daemon` (continuously monitors, auto-detects macOS system processes)
-   - Read the [Daemon Mode Guide](DAEMON.md) for full details on profiles and phases.
-   - Report unknown (single-shot): `cargo run -- --config allowlist.txt`
-   - Enforce: `cargo run -- --config allowlist.txt --enforce`
-   - Stealth: `cargo run -- --stealth`
+Zen utiliza `codesign` para verificar el **Team ID** y la **Authority** de cada binario, permitiéndote confiar en "Google LLC" de forma global sin tener que autorizar cada sub-proceso de Chrome uno por uno.
+
+## 🚀 Quick Start (macOS)
+1. Copia `allowlist.example` a `allowlist.txt` y edítalo.
+2. Comandos principales:
+   - **Daemon Mode:** `cargo run -- --daemon`  
+     (Monitoreo continuo con reporte forense agrupado por Team ID).
+   - **Status Check:** `target/debug/zen --status`  
+     (Consulta la memoria (RSS), PID y reglas activas del daemon en tiempo real).
+   - **Enforce:** `cargo run -- --enforce`  
+     (Termina automáticamente cualquier proceso que no esté en la lista o no tenga una firma confiable).
+   - **Stealth:** `cargo run -- --stealth`  
+     (Solo reporta anomalías de CPU/RAM sin interrumpir).
 
 ## Allowlist Format
 ```

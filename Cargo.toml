@@ -1,6 +1,6 @@
 [package]
-name = "process_tracker"
-version = "0.2.0"
+name = "zen"
+version = "0.3.0"
 edition = "2021"
 
 [dependencies]
